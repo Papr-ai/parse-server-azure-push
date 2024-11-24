@@ -1,49 +1,46 @@
 'use strict'
 
-const Parse = require('parse/node').Parse;
 const https = require('https');
-const merge = require('deeply');
-const version = '2015-08';
-const boundary = "simple-boundary";
+const multipartFactory = require('./multipart');
+const sasToken = require('./NHSasToken');
 
-const generateToken = require('./NHSasToken');
-const multipart = require('./multipart')(boundary);
+module.exports = function NHClient(config) {
+    let api = {
+        bulkSend: (devices, headers, payload) => {
+            return new Promise((resolve, reject) => {
+                let multipart = multipartFactory('simple-boundary')(devices, payload, headers['Content-Type']);
+                let sasHeader = sasToken.generate(config);
+                let options = {
+                    host: config.Endpoint,
+                    path: '/' + config.HubName + '/messages/$batch?direct&api-version=2015-08',
+                    method: 'POST',
+                    headers: {
+                        'Authorization': sasHeader,
+                        'Content-Type': 'multipart/mixed; boundary="simple-boundary"'
+                    }
+                };
 
-module.exports = pushConfig => {
-    var api = {
-        bulkSend: (handles, headers, payload) => {
-            let options = {
-                method: 'post',
-                host: pushConfig.Endpoint,
-                path: '/' + pushConfig.HubName + '/messages/$batch?direct&api-version=' + version,
-                headers: merge(headers, {
-                    'Content-Type': 'multipart/mixed; boundary="' + boundary + '"',
-                    'Authorization': generateToken(pushConfig),
-                    'x-ms-version': version,
-                })
-            };
+                for (let key in headers) {
+                    if (key !== 'Content-Type') {
+                        options.headers[key] = headers[key];
+                    }
+                }
 
-            let sendPromise = new Parse.Promise();
-            let request = https.request(options);
-            multipart(handles, payload, headers['Content-Type']).pipe(request);
-            request.on('response', (res) => {
-                console.log(res.statusCode + ' ' + res.statusMessage + ', sent ' + handles.length +  ' ' + options.headers['ServiceBusNotification-Format'] + ' notifications');
-                if (res.statusCode != 201) {
-                    let err = [];
-                    res.on('data', chunk => err.push(chunk))
-                       .on('end', _ => reportError(Buffer.concat(err).toString()));
-                } else 
-                    sendPromise.resolve(res.statusCode);
-            }).on('error', reportError);
+                let req = https.request(options, res => {
+                    if (res.statusCode !== 201) {
+                        reject(new Error('Notification failed with status ' + res.statusCode));
+                    } else {
+                        resolve();
+                    }
+                });
 
-            function reportError(err) {
-                console.error(err);
-                sendPromise.reject(err);
-            }
-
-            return sendPromise;
+                req.on('error', err => reject(err));
+                
+                const buffer = multipart.getBuffer();
+                req.write(buffer);
+                req.end();
+            });
         }
-    }
-
+    };
     return api;
-}
+};

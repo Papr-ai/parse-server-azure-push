@@ -1,20 +1,33 @@
-var FormData = require('form-data');
+'use strict'
+
+const FormData = require('form-data');
 
 module.exports = function(boundary) {
-    return function(chunk, payload, contentType) {
-        var form = new FormData();
-        form._boundary = boundary;
-        form.append('notification', payload, formOptions('notification', contentType));
-        form.append('devices', JSON.stringify(chunk), formOptions('devices', 'application/json;charset=utf-8'));
-
-        return form;   
-    }
-
-    function formOptions(name, contentType) {
+    return function(devices, payload, contentType) {
+        const form = new FormData();
+        boundary = boundary || 'simple-boundary';
+        
+        // Manually construct the multipart form data
+        let data = '';
+        
+        // Add notification part
+        data += `--${boundary}\r\n`;
+        data += `Content-Disposition: inline; name=notification\r\n`;
+        data += `Content-Type: ${contentType}\r\n\r\n`;
+        data += `${payload}\r\n`;
+        
+        // Add devices part
+        data += `--${boundary}\r\n`;
+        data += `Content-Disposition: inline; name=devices\r\n`;
+        data += `Content-Type: application/json;charset=utf-8\r\n\r\n`;
+        data += `${JSON.stringify(devices)}\r\n`;
+        
+        // Add final boundary
+        data += `--${boundary}--\r\n`;
+        
         return {
-            header: '--' + boundary + FormData.LINE_BREAK +
-                    'Content-Disposition: inline; name=' + name + FormData.LINE_BREAK +
-                    'Content-Type: ' + contentType + FormData.LINE_BREAK + FormData.LINE_BREAK
-        }
-    }             
+            getBuffer: () => Buffer.from(data),
+            toString: () => data
+        };
+    }
 }
