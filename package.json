@@ -3,6 +3,9 @@
   "version": "1.0.3",
   "description": "A Parse Server push adapter using notification hubs",
   "main": "src/AzurePushAdapter.js",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "mocha"
   },
