@@ -1,5 +1,5 @@
 {
-  "name": "parse-server-azure-push",
+  "name": "@shawkatkabbara/parse-server-azure-push",
   "version": "1.0.3",
   "description": "A Parse Server push adapter using notification hubs",
   "main": "src/AzurePushAdapter.js",
